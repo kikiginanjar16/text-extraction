@@ -36,6 +36,27 @@ cp .env.example .env
 uvicorn --env-file .env app.main:app --reload
 ```
 
+## Docker
+
+Build dan jalankan dengan Docker Compose:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Service akan tersedia di:
+
+```text
+http://127.0.0.1:8000
+```
+
+Catatan:
+
+- image memasang `libmagic` dan `LibreOffice`
+- `docker-compose.yml` memakai bind mount project dan `--reload` untuk workflow lokal
+- kalau ingin mode yang lebih production-like, hapus volume mount dan flag `--reload`
+
 Optional OpenAI enrichment:
 
 - isi `OPENAI_API_KEY` di `.env`
