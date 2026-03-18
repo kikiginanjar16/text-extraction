@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import ipaddress
 import mimetypes
-import os
 import re
+import shutil
 import socket
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import mkdtemp
 from typing import Protocol
 from urllib import error, parse, request
 
@@ -26,37 +27,53 @@ class PersistedUpload:
     original_name: str
     path: Path
     size_bytes: int
+    temp_dir: Path
+
+
+def _allocate_temp_path(original_name: str) -> tuple[Path, Path]:
+    suffix = Path(original_name).suffix
+    temp_dir = Path(mkdtemp(prefix="text-extraction-"))
+    return temp_dir, temp_dir / f"source{suffix}"
 
 
 async def persist_upload(upload: UploadLike, *, max_size_bytes: int) -> PersistedUpload:
     original_name = upload.filename or "upload.bin"
-    suffix = Path(original_name).suffix
     size_bytes = 0
+    temp_dir, tmp_path = _allocate_temp_path(original_name)
 
-    with NamedTemporaryFile(delete=False, suffix=suffix) as handle:
-        tmp_path = Path(handle.name)
-        while True:
-            chunk = await upload.read(1024 * 1024)
-            if not chunk:
-                break
-            size_bytes += len(chunk)
-            if size_bytes > max_size_bytes:
-                handle.close()
-                try:
-                    os.unlink(tmp_path)
-                except FileNotFoundError:
-                    pass
-                raise FileTooLargeError("Maximum file size is 50 MB")
-            handle.write(chunk)
-
-    return PersistedUpload(original_name=original_name, path=tmp_path, size_bytes=size_bytes)
-
-
-def cleanup_file(path: Path) -> None:
     try:
-        os.unlink(path)
-    except FileNotFoundError:
-        return
+        with tmp_path.open("wb") as handle:
+            while True:
+                chunk = await upload.read(1024 * 1024)
+                if not chunk:
+                    break
+                size_bytes += len(chunk)
+                if size_bytes > max_size_bytes:
+                    raise FileTooLargeError("Maximum file size is 50 MB")
+                handle.write(chunk)
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+    return PersistedUpload(
+        original_name=original_name,
+        path=tmp_path,
+        size_bytes=size_bytes,
+        temp_dir=temp_dir,
+    )
+
+
+def cleanup_persisted_upload(persisted: PersistedUpload) -> None:
+    shutil.rmtree(persisted.temp_dir, ignore_errors=True)
+
+
+@asynccontextmanager
+async def temporary_upload(upload: UploadLike, *, max_size_bytes: int):
+    persisted = await persist_upload(upload, max_size_bytes=max_size_bytes)
+    try:
+        yield persisted
+    finally:
+        cleanup_persisted_upload(persisted)
 
 
 def validate_remote_url(url: str) -> parse.SplitResult:
@@ -134,21 +151,27 @@ def download_remote_file(url: str, *, max_size_bytes: int, timeout_sec: int) -> 
         raise ExtractionFailedError("Remote file could not be fetched") from exc
 
     original_name = _guess_remote_name(response.geturl(), response.headers)
-    suffix = Path(original_name).suffix
     size_bytes = 0
+    temp_dir, tmp_path = _allocate_temp_path(original_name)
 
-    with response:
-        with NamedTemporaryFile(delete=False, suffix=suffix) as handle:
-            tmp_path = Path(handle.name)
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
-                size_bytes += len(chunk)
-                if size_bytes > max_size_bytes:
-                    handle.close()
-                    cleanup_file(tmp_path)
-                    raise FileTooLargeError("Maximum file size is 50 MB")
-                handle.write(chunk)
+    try:
+        with response:
+            with tmp_path.open("wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    size_bytes += len(chunk)
+                    if size_bytes > max_size_bytes:
+                        raise FileTooLargeError("Maximum file size is 50 MB")
+                    handle.write(chunk)
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
 
-    return PersistedUpload(original_name=original_name, path=tmp_path, size_bytes=size_bytes)
+    return PersistedUpload(
+        original_name=original_name,
+        path=tmp_path,
+        size_bytes=size_bytes,
+        temp_dir=temp_dir,
+    )

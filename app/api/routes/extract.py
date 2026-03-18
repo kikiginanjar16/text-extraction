@@ -13,7 +13,7 @@ from app.schemas.response import serialize_extract_response
 from app.services.classification.service import ClassificationService
 from app.services.enrichment.service import EnrichmentService
 from app.services.extraction.service import ExtractionService
-from app.services.storage.temp_files import cleanup_file, download_remote_file, persist_upload
+from app.services.storage.temp_files import cleanup_persisted_upload, download_remote_file, temporary_upload
 
 router = APIRouter(tags=["extract"])
 
@@ -27,12 +27,14 @@ def _build_response(
     *,
     original_name: str,
     persisted_path: Path,
+    declared_mime_type: str | None = None,
     include_empty_pages: bool,
     paginate_strategy: str,
 ) -> JSONResponse:
     extracted = extraction_service.extract(
         persisted_path,
         original_name=original_name,
+        declared_mime_type=declared_mime_type,
         include_empty_pages=include_empty_pages,
         paginate_strategy=paginate_strategy,
     )
@@ -69,16 +71,18 @@ async def extract_text(
     paginate_strategy: str = Form(default="auto"),
 ) -> JSONResponse:
     normalized_strategy = normalize_paginate_strategy(paginate_strategy)
-    persisted = await persist_upload(file, max_size_bytes=settings.max_file_size_bytes)
-    try:
+    extraction_service.validate_upload(
+        original_name=file.filename,
+        declared_mime_type=file.content_type,
+    )
+    async with temporary_upload(file, max_size_bytes=settings.max_file_size_bytes) as persisted:
         return _build_response(
             original_name=persisted.original_name,
             persisted_path=persisted.path,
+            declared_mime_type=file.content_type,
             include_empty_pages=include_empty_pages,
             paginate_strategy=normalized_strategy,
         )
-    finally:
-        cleanup_file(persisted.path)
 
 
 @router.post("/v1/extract-url")
@@ -102,4 +106,4 @@ async def extract_text_from_url(
             paginate_strategy=normalized_strategy,
         )
     finally:
-        cleanup_file(persisted.path)
+        cleanup_persisted_upload(persisted)
