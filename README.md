@@ -4,6 +4,7 @@ Repo ini sekarang berisi dua hal:
 
 - implementasi baseline layanan text extraction berbasis `FastAPI`
 - dokumen spec di folder [`spec-kit`](./spec-kit)
+- panduan integrasi frontend di [`APIDOC.md`](./APIDOC.md)
 
 ## Supported Formats
 
