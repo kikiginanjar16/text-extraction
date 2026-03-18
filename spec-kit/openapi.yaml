@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: Text Extraction API
+  version: 0.1.0
+  summary: Extract text from supported document types into an ordered pages array with best-effort pagination for non-native formats
+servers:
+  - url: http://localhost:8000
+paths:
+  /v1/extract:
+    post:
+      summary: Extract text into an ordered pages array
+      operationId: extractText
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Supported extensions are pdf, docx, pptx, md, txt, doc, ppt, and xls.
+                include_empty_pages:
+                  type: boolean
+                  default: true
+                paginate_strategy:
+                  type: string
+                  description: Auto uses the default strategy per format. Virtual forces synthetic pagination when supported.
+                  enum:
+                    - auto
+                    - virtual
+                  default: auto
+      responses:
+        "200":
+          description: Extraction completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractResponse"
+        "413":
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "415":
+          description: Unsupported file type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Extraction failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/extract-url:
+    post:
+      summary: Extract text from a remote file URL
+      operationId: extractTextFromUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractUrlRequest"
+      responses:
+        "200":
+          description: Extraction completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractResponse"
+        "413":
+          description: Remote file too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "415":
+          description: Unsupported file type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid URL or extraction failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    ExtractUrlRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Public http or https URL that points to a supported document file.
+        include_empty_pages:
+          type: boolean
+          default: true
+        paginate_strategy:
+          type: string
+          enum:
+            - auto
+            - virtual
+          default: auto
+    ExtractResponse:
+      type: object
+      required:
+        - file_name
+        - file_type
+        - mime_type
+        - document_category
+        - document_domain
+        - summary
+        - tags
+        - classification
+        - enrichment
+        - page_count
+        - pages
+      properties:
+        file_name:
+          type: string
+        file_type:
+          type: string
+          enum:
+            - pdf
+            - docx
+            - pptx
+            - md
+            - txt
+            - doc
+            - ppt
+            - xls
+        mime_type:
+          type: string
+        document_category:
+          type: string
+          enum:
+            - invoice
+            - receipt
+            - contract
+            - proposal
+            - report
+            - presentation
+            - resume
+            - memo
+            - meeting_notes
+            - letter
+            - form
+            - spreadsheet
+            - manual
+            - unknown
+        document_domain:
+          type: string
+          enum:
+            - finance
+            - accounting
+            - it
+            - hr
+            - legal
+            - procurement
+            - operations
+            - sales
+            - marketing
+            - customer_support
+            - executive
+            - general
+            - unknown
+        summary:
+          type:
+            - string
+            - "null"
+          description: Optional document summary. May be null when AI enrichment is skipped or summary generation fails.
+        tags:
+          type: array
+          items:
+            type: string
+        classification:
+          $ref: "#/components/schemas/Classification"
+        enrichment:
+          $ref: "#/components/schemas/Enrichment"
+        page_count:
+          type: integer
+          minimum: 0
+          description: Number of items returned in pages. For non-native formats this may differ from the source document's visual page count.
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Page"
+    Classification:
+      type: object
+      required:
+        - confidence
+        - method
+        - model
+      properties:
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        method:
+          type: string
+          enum:
+            - rules
+            - ml
+            - llm
+        model:
+          type: string
+    Enrichment:
+      type: object
+      required:
+        - status
+        - ai_used
+        - provider
+        - model
+      properties:
+        status:
+          type: string
+          enum:
+            - applied
+            - skipped
+            - fallback
+        ai_used:
+          type: boolean
+        provider:
+          type:
+            - string
+            - "null"
+          enum:
+            - openai
+            - null
+        model:
+          type:
+            - string
+            - "null"
+    Page:
+      type: object
+      required:
+        - page
+        - text
+        - char_count
+        - is_empty
+        - page_kind
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: 1-based sequence number in the response. For non-native formats it is not guaranteed to match the source document's original pagination.
+        text:
+          type: string
+        char_count:
+          type: integer
+          minimum: 0
+        is_empty:
+          type: boolean
+        page_kind:
+          type: string
+          enum:
+            - native
+            - rendered
+            - virtual
+          description: Native means source-native pages, rendered means conversion-derived pages, virtual means synthetic segmentation.
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
