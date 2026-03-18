@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   summary: Extract text from supported document types into an ordered pages array with best-effort pagination for non-native formats
 servers:
-  - url: http://localhost:8000
+  - url: http://localhost:8873
 paths:
   /v1/extract:
     post:

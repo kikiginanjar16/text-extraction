@@ -5,7 +5,7 @@ Dokumen ini ditulis untuk kebutuhan integrasi frontend.
 Base URL lokal:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8873
 ```
 
 Available endpoints:
@@ -18,6 +18,7 @@ Catatan penting:
 
 - frontend tidak perlu mengirim OpenAI key
 - OpenAI enrichment dikontrol dari server lewat `OPENAI_API_KEY` di `.env`
+- `/docs`, `/redoc`, dan `/openapi.json` bisa dilindungi Basic Auth lewat `SWAGGER_USERNAME` dan `SWAGGER_PASSWORD`
 - jika backend dijalankan pada origin yang berbeda dari frontend, CORS middleware belum dikonfigurasi saat ini
 
 ## Quick Start
@@ -30,7 +31,7 @@ formData.append("file", file);
 formData.append("include_empty_pages", "true");
 formData.append("paginate_strategy", "auto");
 
-const response = await fetch("http://127.0.0.1:8000/v1/extract", {
+const response = await fetch("http://127.0.0.1:8873/v1/extract", {
   method: "POST",
   body: formData,
 });
@@ -41,7 +42,7 @@ const data = await response.json();
 Untuk ekstraksi dari URL:
 
 ```ts
-const response = await fetch("http://127.0.0.1:8000/v1/extract-url", {
+const response = await fetch("http://127.0.0.1:8873/v1/extract-url", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -93,7 +94,7 @@ export async function extractFromFile(file: File) {
   formData.append("include_empty_pages", "true");
   formData.append("paginate_strategy", "auto");
 
-  const response = await fetch("http://127.0.0.1:8000/v1/extract", {
+  const response = await fetch("http://127.0.0.1:8873/v1/extract", {
     method: "POST",
     body: formData,
   });
@@ -136,7 +137,7 @@ Frontend example:
 
 ```ts
 export async function extractFromUrl(url: string) {
-  const response = await fetch("http://127.0.0.1:8000/v1/extract-url", {
+  const response = await fetch("http://127.0.0.1:8873/v1/extract-url", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

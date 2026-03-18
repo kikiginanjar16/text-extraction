@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: text-extraction-api
     ports:
-      - "8000:8000"
+      - "8873:8873"
     volumes:
       - .:/app
-    command: uvicorn --env-file .env app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn --env-file .env app.main:app --host 0.0.0.0 --port 8873 --reload

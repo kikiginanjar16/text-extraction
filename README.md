@@ -33,7 +33,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 cp .env.example .env
-uvicorn --env-file .env app.main:app --reload
+uvicorn --env-file .env app.main:app --host 0.0.0.0 --port 8873 --reload
 ```
 
 ## Docker
@@ -48,7 +48,7 @@ docker compose up --build
 Service akan tersedia di:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8873
 ```
 
 Catatan:
@@ -62,12 +62,18 @@ Optional OpenAI enrichment:
 - isi `OPENAI_API_KEY` di `.env`
 - atau install extra dependency dengan `pip install -e .[ai]` bila Anda ingin menandai dependency AI secara eksplisit
 
+Optional Swagger credentials:
+
+- isi `SWAGGER_USERNAME` dan `SWAGGER_PASSWORD` di `.env`
+- jika keduanya diisi, akses ke `/docs`, `/redoc`, dan `/openapi.json` akan meminta Basic Auth
+- jika dibiarkan kosong, Swagger tetap terbuka
+
 ## URL Endpoint
 
 Anda juga bisa ekstraksi dari URL:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/v1/extract-url \
+curl -X POST http://127.0.0.1:8873/v1/extract-url \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://example.com/report.pdf",
